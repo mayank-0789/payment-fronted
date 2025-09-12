@@ -113,7 +113,7 @@ function App() {
       const orderData = response.data
       
       const options = {
-        "key": "rzp_test_RGGVGUEjDKnagF", // Your Razorpay key
+        "key": "rzp_live_gS9mlkp62gLGIU", // Your Razorpay LIVE key
         "amount": orderData.amount,
         "currency": orderData.currency,
         "name": "Acme Corp",
