@@ -17,10 +17,7 @@ function App() {
     description: "Premium quality wireless headphones with noise cancellation"
   }
 
-  const handleAddToCart = () => {
-    setIsAdded(true)
-    setTimeout(() => setIsAdded(false), 2000)
-  }
+ 
 
   const cardStyle = {
     maxWidth: '400px',
@@ -109,12 +106,9 @@ function App() {
     try {
       setIsAdded(true)
       
-      // Calculate total amount based on quantity
-      const totalAmount = product.price * quantity
+   
       
-      const response = await axios.post('http://localhost:3000/create-order', {
-        amount: totalAmount * 100 // Convert to paise
-      })
+      const response = await axios.post('http://localhost:3000/create-order')
       
       const orderData = response.data
       
