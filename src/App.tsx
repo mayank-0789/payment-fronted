@@ -108,7 +108,7 @@ function App() {
       
    
       
-      const response = await axios.post('http://localhost:3000/create-order')
+      const response = await axios.post('https://payment-backend-cms0.onrender.com/create-order')
       
       const orderData = response.data
       
