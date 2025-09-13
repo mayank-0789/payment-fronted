@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import './App.css'
 import axios from 'axios'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import UserProfile from './components/UserProfile'
+import { completePaymentFlow } from './services/paymentService'
 
-function App() {
+function ProductCard() {
   const [quantity, setQuantity] = useState(1)
   const [isAdded, setIsAdded] = useState(false)
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
+  const [statusMessage, setStatusMessage] = useState('')
+  const { currentUser, isPaidUser, refreshPaymentStatus } = useAuth()
 
   const product = {
     id: 1,
@@ -16,8 +23,6 @@ function App() {
     reviews: 128,
     description: "Premium quality wireless headphones with noise cancellation"
   }
-
- 
 
   const cardStyle = {
     maxWidth: '400px',
@@ -108,7 +113,8 @@ function App() {
       
    
       
-      const response = await axios.post('https://payment-backend-cms0.onrender.com/create-order')
+      // const response = await axios.post('http://localhost:3000/create-order')
+      const response = await axios.post('https://razor-payment-backend.onrender.com/create-order')
       
       const orderData = response.data
       
@@ -121,8 +127,8 @@ function App() {
         "image": product.image,
         "order_id": orderData.id,
         "prefill": {
-          "name": "Customer Name",
-          "email": "customer@example.com",
+          "name": currentUser?.displayName || "Customer Name",
+          "email": currentUser?.email || "customer@example.com",
           "contact": "+919876543210"
         },
         "notes": {
@@ -132,10 +138,39 @@ function App() {
         "theme": {
           "color": "#3399cc"
         },
-        "handler": function (response: any) {
-          alert(`Payment successful! Payment ID: ${response.razorpay_payment_id}`)
+        "handler": async function (response: any) {
           console.log('Payment Response:', response)
-          setIsAdded(false)
+          setPaymentStatus('processing')
+          setStatusMessage('Verifying payment...')
+          
+          try {
+            if (!currentUser) {
+              throw new Error('User not authenticated')
+            }
+
+            // Verify payment and add to Firestore
+            const result = await completePaymentFlow(currentUser, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }, orderData.amount)
+
+            if (result.success) {
+              setPaymentStatus('success')
+              setStatusMessage(result.message)
+              // Refresh payment status in auth context
+              await refreshPaymentStatus()
+            } else {
+              setPaymentStatus('error')
+              setStatusMessage(result.message)
+            }
+          } catch (error: any) {
+            console.error('Payment verification error:', error)
+            setPaymentStatus('error')
+            setStatusMessage(error.message || 'Payment verification failed')
+          } finally {
+            setIsAdded(false)
+          }
         },
         "modal": {
           "ondismiss": function() {
@@ -155,12 +190,82 @@ function App() {
     }
   }
 
+  // Payment status styles
+  const statusContainerStyle: React.CSSProperties = {
+    padding: '15px',
+    marginBottom: '15px',
+    borderRadius: '8px',
+    textAlign: 'center',
+    fontSize: '14px',
+    fontWeight: '500'
+  }
+
+  const successStatusStyle: React.CSSProperties = {
+    ...statusContainerStyle,
+    backgroundColor: '#d4edda',
+    color: '#155724',
+    border: '1px solid #c3e6cb'
+  }
+
+  const errorStatusStyle: React.CSSProperties = {
+    ...statusContainerStyle,
+    backgroundColor: '#f8d7da',
+    color: '#721c24',
+    border: '1px solid #f5c6cb'
+  }
+
+  const processingStatusStyle: React.CSSProperties = {
+    ...statusContainerStyle,
+    backgroundColor: '#d1ecf1',
+    color: '#0c5460',
+    border: '1px solid #bee5eb'
+  }
+
+  const paidUserBadgeStyle: React.CSSProperties = {
+    display: 'inline-block',
+    backgroundColor: '#28a745',
+    color: 'white',
+    padding: '4px 8px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    marginLeft: '8px'
+  }
+
   return (
     <div style={cardStyle}>
       <img src={product.image} alt={product.name} style={imageStyle} />
       
       <div style={contentStyle}>
-        <h3 style={titleStyle}>{product.name}</h3>
+        <h3 style={titleStyle}>
+          {product.name}
+          {isPaidUser && <span style={paidUserBadgeStyle}>✓ PAID</span>}
+        </h3>
+
+        {/* Payment Status Messages */}
+        {paymentStatus === 'processing' && (
+          <div style={processingStatusStyle}>
+            🔄 {statusMessage}
+          </div>
+        )}
+        
+        {paymentStatus === 'success' && (
+          <div style={successStatusStyle}>
+            ✅ {statusMessage}
+          </div>
+        )}
+        
+        {paymentStatus === 'error' && (
+          <div style={errorStatusStyle}>
+            ❌ {statusMessage}
+          </div>
+        )}
+
+        {isPaidUser && (
+          <div style={successStatusStyle}>
+            🎉 You have premium access! Enjoy exclusive features.
+          </div>
+        )}
         
         <div style={ratingStyle}>
           <span>⭐ {product.rating}</span>
@@ -199,11 +304,25 @@ function App() {
         <button 
           style={addToCartStyle}
           onClick={handleBuyNow}
+          disabled={isAdded || isPaidUser}
         >
-          {isAdded ? 'Processing...' : 'Buy Now'}
+          {isPaidUser ? 'Already Purchased ✓' : isAdded ? 'Processing...' : 'Buy Now'}
         </button>
       </div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ProtectedRoute>
+        <div style={{ position: 'relative', minHeight: '100vh' }}>
+          <UserProfile />
+          <ProductCard />
+        </div>
+      </ProtectedRoute>
+    </AuthProvider>
   )
 }
 
