@@ -5,7 +5,7 @@ import axios from 'axios';
 
 // Payment backend URL - update this to your actual backend URL
 // const PAYMENT_BACKEND_URL = 'http://localhost:3000';
-const PAYMENT_BACKEND_URL = 'https://razor-payment-backend.onrender.com';
+const PAYMENT_BACKEND_URL = 'https://payment-backend-cms0.onrender.com';
 
 export interface PaymentVerificationData {
   razorpay_order_id: string;
